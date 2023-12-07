@@ -1,5 +1,6 @@
 import cv2
 import os
+import numpy as np
 
 def preprocess_images(input_folder, output_folder):
     preprocessed_images = []
@@ -111,51 +112,41 @@ def brute_force_matching(descriptors1, descriptors2):
 
 if __name__ == "__main__":
      # Example image path
-    image_path = 'Union.png'
-
-    # Read the image
+    image_path = 'FullBoard.png'
     image1 = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    cv2.imshow('SIFT Keypoints', image1)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    image2_path = 'Input/Board2.jpg'
+    keypoints1, descriptors1 = sift_algorithm(image1)
 
-    # Read the image
-    image2 = cv2.imread(image2_path, cv2.IMREAD_GRAYSCALE)
-    cv2.imshow('SIFT Keypoints', image2)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    # Call the SIFT algorithm
-    keypoints, descriptors = sift_algorithm(image1)
-
-    # Loop through each image in the input folder
     for filename in os.listdir("Input/"):
         if filename.endswith(".jpg") or filename.endswith(".png"):
             input_path = os.path.join("Input/", filename)
 
-            # Read the image
-            image = cv2.imread(input_path, cv2.IMREAD_GRAYSCALE)
+            # Read the input image
+            image2 = cv2.imread(input_path, cv2.IMREAD_GRAYSCALE)
 
-            # Apply SIFT algorithm
-            keypoints2, descriptors2 = sift_algorithm(image)
-            matches = brute_force_matching(descriptors,descriptors2)
+            # Apply SIFT algorithm to the input image
+            keypoints2, descriptors2 = sift_algorithm(image2)
 
-            result_image = cv2.drawMatches(image1, keypoints, image, keypoints2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            # Perform brute-force matching
+            matches = brute_force_matching(descriptors1, descriptors2)
+
+            # Find homography
+            pts1 = np.array([keypoints1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+            pts2 = np.array([keypoints2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+
+            # Use RANSAC to find the homography matrix
+            homography, mask = cv2.findHomography(pts2, pts1, cv2.RANSAC, 3.0)
+
+            # Warp the input image
+            warped_image = cv2.warpPerspective(image2, homography, (image2.shape[1], image2.shape[0]))
+
+            # Display the result
+            result_image = cv2.drawMatches(image1, keypoints1, image2, keypoints2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
             cv2.imshow('Brute Force Matching', result_image)
+            text = f'Image Name: {filename}'
+            cv2.putText(warped_image, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.imshow('Warped Image', warped_image)
+
             cv2.waitKey(0)
-            cv2.destroyAllWindows()
-            # Visualize the keypoints on the image
-            # image_with_keypoints = cv2.drawKeypoints(image, keypoints, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-            # Save the result
-            # cv2.imwrite(output_path, image_with_keypoints)
-    # keypoints2, descriptors2 = sift_algorithm(image2)
-
-    # matches = brute_force_matching(descriptors,descriptors2)
-
-    # result_image = cv2.drawMatches(image1, keypoints, image2, keypoints2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
-    # Display the result
-
-
+        cv2.destroyAllWindows()
 
